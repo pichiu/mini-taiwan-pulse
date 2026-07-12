@@ -135,3 +135,12 @@ mini-taiwan-pulse/
 5. **BYOK 多 LLM 聊天子系統**：`src/chat/` + `@ai-sdk/*` 是相對獨立的子系統（agent/providers/systemPrompt/tools），透過 CSP `connect-src` 白名單限制金鑰只能送往三家 LLM + Supabase + Mapbox，顯示專案已進入「面向公開使用者」的安全加固階段（`nginx.conf` 中的 BC-4 安全 header 注解也印證此點：2026-07-04 新增，CSP 目前 Report-Only）。
 6. **強 Claude Code 協作基礎設施**：`.claude/` 下有完整的 memory 迴圈、pitfalls 知識庫、多個領域 skill、slash command 自動化（`/new-layer`、`/check-rpc`、`/wrap-up`），顯示這是一個長期由 AI agent 高度參與維護的專案，文件與程式碼的同步機制比一般專案更嚴謹（`/wrap-up` 明確定義何時更新哪個 memory 檔）。
 7. **多 repo 協作生態**：`mini-taiwan-pulse` 為前端，`gis-platform`（Supabase migrations）、`data-collectors`（資料收集 + SQL 範本）、`pulse-api`（FastAPI 備援，目前已不接前端）、`mini-taipei-v3`（鐵道資料源）為姊妹 repo，CLAUDE.md 明確定義「上游先動、下游後動」的跨 repo 同步順序，Stage 2+ 若要完整記錄資料流，需注意部分邏輯（refresh function、collector）並不在本 repo 內。
+
+---
+
+## Stage 1.5 範圍評估（Main Agent 附註）
+
+- `git ls-files` 總數 738 個，形式上超過 500 檔門檻，但扣除既有文件（185 個 `.md`）、靜態資料（38 個 `.geojson`）、圖片/PMTiles 資產（28 個）後，實際純程式碼檔案（`.ts`/`.tsx`，不含測試）為 353 個，低於 500。
+- 判斷：**不縮限範圍，進行 full trace**。理由：(1) 核心程式碼規模適中；(2) 既有文件雖多但分散在 19 個 feature 資料夾，缺乏「端到端資料流」與「架構總覽」單一入口，這正是本次 trace 最大價值所在；(3) 私有內部專案沒有外部貢獻者急迫性，值得一次做完整。
+- 專案類型判定：**Frontend SPA**，但因外部整合（Supabase RPC / TDX API）是架構核心且複雜度高，**不採用「Frontend SPA 可跳過 2.5」的預設**，2.5 外部整合維持獨立文件。
+- 2.2 Request/Data Flow 因無傳統 request/response server，改為 trace「圖層資料生命週期」：Supabase RPC → Loader → Hook → CustomLayer/Scene → Mapbox render。
