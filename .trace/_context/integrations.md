@@ -287,6 +287,41 @@ jobs:
 
 ---
 
+### 3.1 `src/` 內所有 `fetch()` 呼叫點分類（逐一核對表）
+
+| 檔案:行號 | 呼叫對象 | 分類 |
+|---|---|---|
+| `src/lib/supabase.ts:120` | caller 傳入（`resilientFetch` 內部） | Supabase RPC wrapper 本體 |
+| `src/lib/sessionTracker.ts:51` | `${SUPABASE_URL}/rest/v1/rpc/log_session_events` | Supabase PostgREST 直連 |
+| `src/map/overlayManager.ts:261` | `config.sourceUrl`（同源靜態 GeoJSON） | 靜態資產 |
+| `src/map/realEstatePointsCustomLayer.ts:23` | `BUFFER_URL`（同源） | 靜態資產 |
+| `src/App.tsx:223,301,326,352` | `./geo/lighthouse.geojson`、`./station_pillars.json`、`./geo/airports.geojson`、`./geo/port_polygons.geojson` | 靜態資產（同源相對路徑） |
+| `src/map/agricultureLayerFactory.ts:475` | `${BASE}/agriculture_pois.geojson` | 靜態資產 |
+| `src/map/climateParticleLineLayer.ts:97` | `resolved`（同源） | 靜態資產 |
+| `src/map/fireStationCustomLayer.ts:27` | `./geo/fire_stations.geojson` | 靜態資產 |
+| `src/hooks/useDustForecastLayer.ts:43` | `./climate/dust_latest.json` | 靜態資產 |
+| `src/data/erHospitalLoader.ts:61` | `GEOJSON_URL`（同源，座標 join 用） | 靜態資產 |
+| `src/data/staticRpc.ts:25` | `/static-rpc/${name}.json` | 靜態化 RPC 快照（CDN，見 §1.3） |
+| `src/data/busLoader.ts:28,187` | `BUS_CITY_CONFIG[city].jsonFile`、`BUS_INTERCITY_ROUTES_JSON`（同源） | 靜態資產 |
+| `src/data/railScheduleLoader.ts:44,90,125,156` | `/rail/tra/schedules_real/daily/${date}.json`、`/rail/thsr/schedules/daily/${date}.json`（同源） | 靜態資產 |
+| `src/data/satelliteLoader.ts:54` | `${SUPABASE_URL}/rest/v1/satellite_classified?...` | Supabase PostgREST 直連（見 §1.4） |
+| `src/data/h3Loader.ts:112` | `./h3/${filename}`（同源） | 靜態資產 |
+| `src/data/newsEventsLoader.ts:128` | `STATIC_URL`（同源） | 靜態資產 |
+| `src/data/touristShuttleLoader.ts:40` | `TOURIST_SHUTTLE_ROUTES_JSON`（同源） | 靜態資產 |
+| `src/data/railLoader.ts:20` | `url`（同源） | 靜態資產 |
+| `src/chat/tools/h3Population.ts:33` | `H3_POP_URL`（同源） | 靜態資產（BYOK chat tool 讀本地資料回答問題，非外部 API） |
+| `src/chat/tools/geojsonQuery.ts:38` | `url`（同源） | 靜態資產（同上） |
+
+**結論驗證**：21 個 `fetch()` 呼叫點中，19 個是同源靜態資產（走 nginx location 分流 S3/dist），2 個是 Supabase PostgREST 直連（`sessionTracker.ts`、`satelliteLoader.ts`）。**零個**指向 TDX 或其他外部運輸資料 API 網域，證實 §3 開頭結論。`cwaImageryLoader.ts` 對 CDN（`data.itsmigu.com`）的呼叫改走 `IMAGERY_CDN_BASE` 字串拼接後續接 `fetch`（非本表逐行列出的固定字面 `fetch(` pattern，但邏輯上同屬「靜態資產」分類，實質為 R2 CDN，見 §5.3 展開）。
+
+### 3.2 CWA 影像 CDN（`data.itsmigu.com`）細節
+
+`src/data/cwaImageryLoader.ts:19`：
+```ts
+const IMAGERY_CDN_BASE = (import.meta.env.VITE_IMAGERY_CDN_BASE ?? "").replace(/\/+$/, "");
+```
+依 `.claude/memory/BACKLOG.md` AR-11（已完成項目）記載：CWA 衛星/雷達影像原本經 Supabase RPC 回傳 base64（造成約 90MB/人/日的 DB egress），改為 collector 端 best-effort 雙寫到 Cloudflare R2 + 前端改讀輕量 manifest RPC（`get_cwa_imagery_list`/`get_cwa_imagery_frame`，`src/data/cwaImageryLoader.ts:170,214`）取得 CDN URL 後直接 `fetch` 影像本體。`VITE_IMAGERY_CDN_BASE` 為 feature flag：未設定時邏輯 fallback 到舊路徑（Supabase 回 base64）。此為「本方資料管線產出物走 CDN」而非第三方 API，但因涉及外部網域（`data.itsmigu.com` + R2 預設網域）需在 CSP `connect-src` 額外白名單（見 §6.3）。
+
 ## 附錄：本文件未展開但與外部整合相關的延伸主題（供後續 Stage 參考）
 
 - `src/lib/auth.ts`：Supabase Auth（OAuth）整合，`.claude/memory/BACKLOG.md` BC-4a 提及需在 Supabase Dashboard 手動設定 Redirect URLs + Google Console，屬「非程式碼可追蹤」的外部平台設定，本文件僅在 §6.3 CSP 脈絡中帶到。
