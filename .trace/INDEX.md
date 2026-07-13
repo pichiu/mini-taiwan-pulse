@@ -39,7 +39,7 @@ pnpm build        # tsc -b && vite build
 |---|---|---|
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 系統架構、元件清單、通訊模式、關鍵設計決策 | 想理解整體架構的新人 |
 | [`DATA_MODEL.md`](./DATA_MODEL.md) | 前端消費的資料形狀、Supabase RPC 對照、狀態管理策略 | 要接新資料源的開發者 |
-| [`API_SURFACE.md`](./API_SURFACE.md) | Supabase RPC 清單、外部整合介面、CLI/npm scripts | 要新增 loader 或除錯資料層的開發者 |
+| [`API_SURFACE.md`](./API_SURFACE.md) + [`API_SURFACE_part2.md`](./API_SURFACE_part2.md) | Supabase RPC 清單、外部整合介面、npm scripts、Auth/Authorization、錯誤處理 | 要新增 loader 或除錯資料層的開發者 |
 | [`DEV_GUIDE.md`](./DEV_GUIDE.md) | 環境建置、開發 workflow、測試、常見踩坑 | 第一次 clone 這個 repo 的人 |
 | [`CODEBASE_MAP.md`](./CODEBASE_MAP.md) | 目錄地圖、「我想改 X 要看哪裡」速查表 | 要動手改程式碼前 |
 | [`DISCOVERY_LOG.md`](./DISCOVERY_LOG.md) | 文件與程式碼落差、TODO 彙整、待解問題 | 想知道哪裡還不確定 / 有技術債 |
