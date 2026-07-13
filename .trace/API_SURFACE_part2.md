@@ -1,10 +1,10 @@
 # API Surface (續) — npm scripts / Auth & Authorization / Error Handling
 
-> 承接 [`API_SURFACE.md`](./API_SURFACE.md)。本檔涵蓋原規格 §4-6。
+> 本檔為 [API_SURFACE.md](./API_SURFACE.md) 續篇，對應其第 4/5/6 節
 
 ---
 
-## 1. npm scripts / CLI 介面
+## 4. npm scripts / CLI 介面
 
 `package.json:6-19`，共 12 支 script：
 
@@ -32,7 +32,7 @@
 
 ---
 
-## 2. Authentication & Authorization
+## 5. Authentication & Authorization
 
 ### 2.0 判斷鏈總覽圖
 
@@ -118,7 +118,7 @@ flowchart TD
 
 ---
 
-## 3. Error Handling Pattern
+## 6. Error handling pattern
 
 ### 3.1 總表：Supabase RPC 呼叫失敗時的前端處理
 
@@ -166,11 +166,36 @@ flowchart TD
 
 錯誤處理策略整體呈現「**集中式韌性層（`resilientFetch`）兜底 + 各 loader 依資料重要性選擇 throw-and-surface 或 warn-and-degrade**」的兩層設計，而非每個 loader 各自實作差異化重試邏輯。
 
+### 3.4 `satelliteLoader.ts` / `sessionTracker.ts` 各自的錯誤處理設計動機
+
+兩者都繞過 `resilientFetch`（原生 `fetch`，見 `API_SURFACE.md` §2），但錯誤處理哲學完全不同，值得對照：
+
+| | `satelliteLoader.ts` | `sessionTracker.ts` |
+|---|---|---|
+| 繞過原因 | 效能/快取考量，避免 supabase-js query builder 開銷；`satelliteLoader.ts:1-3` 註解另提及 CelesTrak `active.txt` 瀏覽器直連會被 403（CORS/UA），改讀 gis-platform 每 2h 同步的 `satellite_classified` view | 頁面卸載（`visibilitychange`/`pagehide`）時需要「保證送出但不阻塞卸載」語意，supabase-js 的 Promise-based `.rpc()` 不保證能在卸載前完成；用 `fetch(..., { keepalive: true })` 模擬 `navigator.sendBeacon` 語意但避開其 JSON payload 的 CORS 限制 |
+| 失敗時是否 throw | 是（`fetchView()` 檢查 `resp.ok`，`:60` `throw new Error`），但外層呼叫處用 `try/catch` 接住並 `console.error("[satellite] Supabase fetch error", e)`（`:110-111`），**不會讓例外冒到 UI 層造成崩潰** | 否，`flushViaBeacon()` 直接 `.catch(() => {})`（`:60`）完全靜默，連 `console.error` 都不印 |
+| 有無 retry | 沒有（繞過 `resilientFetch` 就沒有其內建的 2 次 retry） | 沒有；但正常（非卸載）場景走 `flushViaRpc()`（`:63-` 起，經 `supabase.rpc`）仍享有 `resilientFetch` 的 retry，只有卸載這條「保底」路徑才是完全繞過且不 retry |
+| 失敗後的兜底 | `localStorage` 6 小時快取（`:17-18,34-50`，`readCache()`/`writeCache()`），單次請求失敗但快取未過期時使用者感受不到差異 | 無兜底——分析事件遺失即遺失，`sessionTracker.ts` 檔頭精神是「分析資料容忍遺失，不應以任何方式拖慢或阻塞主體驗」 |
+
+**結論**：`satelliteLoader` 的繞過是「效能優化 + 用快取彌補韌性缺口」，`sessionTracker` 的繞過是「卸載時序語意需求 + 用『分析資料可遺失』原則接受靜默失敗」——两者都是integrations.md §1.4/§5.2 已定性的「刻意的效能/語意權衡，非疏漏」，本節在此基礎上進一步比較兩者錯誤處理策略的具體差異。
+
+### 3.5 待確認 / ⚠️ 未驗證項目彙整
+
+本檔（part2）沿用 `API_SURFACE.md` 與 `_context/*.md` 的 ⚠️ 標注慣例，未逐行核對原始碼的項目彙整如下：
+
+1. `src/chat/agent.ts` 內 BYOK LLM 呼叫失敗（例如 API key 失效、額度用盡、模型端錯誤）時的前端呈現方式——僅依 Vercel AI SDK 慣例推測由 SDK 層拋出並在 Chat UI 顯示錯誤訊息，未讀取 `agent.ts` 原始碼確認。
+2. `admin_*` RPC 在 DB 端的確切 `SECURITY DEFINER` 實作與權限檢查邏輯——不在本 repo（`gis-platform` migration 276），僅依前端檔頭註解與命名慣例推斷。
+3. `src/lib/rpcDebounce.ts` 的確切作用範圍與是否涉及錯誤處理——僅依檔名推測為特定高頻互動場景的 debounce 工具，未展開讀取。
+4. `.eslintrc` / lint pipeline 是否存在於 `package.json` scripts 之外（例如 IDE 整合或 pre-commit hook）——`package.json` scripts 本身未見 lint 相關指令，但不代表專案完全無 lint 機制，僅代表 CLI 層面無此 script。
+5. `RPC_WHITELIST`（`rpcTools.ts:17-93`）目前登記 10 支 RPC，與 `API_SURFACE.md:331` 記載的「9 支」有出入——已在 §3.1a 上方註記，建議以本檔逐一列舉（10 支）為準，或回頭核對 `API_SURFACE.md` 是否需要修正。
+
 ---
 
 ## 相關文件連結
 
-- [`API_SURFACE.md`](./API_SURFACE.md) — 主文件（RPC 總表 / 直連 fetch / BYOK LLM 介面）
-- [`CLAUDE.md`](../CLAUDE.md) — Git workflow、環境變數表
-- [`docs/features/owner-gated-layers/`](../docs/features/owner-gated-layers/) — Phase 2 分層 gating 完整設計文件
-- `.trace/_context/integrations.md` §5 — 失敗處理章節延伸來源
+- [`API_SURFACE.md`](./API_SURFACE.md) — 主文件（RPC 總表 / 直連 fetch / BYOK LLM 介面），本檔第 4/5/6 節對應其第 4/5/6 節的展開內容
+- [`CLAUDE.md`](../CLAUDE.md) — Git workflow、環境變數表、資料來源管理（前端禁打 `realtime.*`）、Loading UI 規範
+- [`docs/features/owner-gated-layers/`](../docs/features/owner-gated-layers/) — Phase 2 分層 gating 系統完整設計（§2.2/§2.0 流程圖延伸閱讀）
+- [`docs/features/byok-chat/`](../docs/features/byok-chat/) — BYOK 多 LLM 聊天功能完整設計（§3.1a chat RPC 白名單延伸閱讀）
+- `.trace/_context/integrations.md` §1.3-1.4、§5 — RLS/anon key 安全模式與失敗處理章節延伸來源
+- `.trace/_context/entry_points.md` §2.4 — `loadingRegistry.ts` 初始化時機，與本檔 §3 錯誤處理策略中「使用者感知載入/失敗狀態的唯一 UI 管道」互為補充
