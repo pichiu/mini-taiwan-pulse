@@ -3,7 +3,7 @@
 ## 分支資訊
 
 - **Base Branch**: master
-- **Trace Branch**: `claude/codebase-trace-documentation-3ik4j3`（依協作環境的分支管理規範，開發限定於此分支，取代原生標準流程中的 `trace/docs`；建立時與 `master` HEAD 完全同步，等同標準流程的獨立 trace branch）
+- **Trace Branch**: `trace/docs`（Stage 0 曾誤以協作環境指定的 `claude/codebase-trace-documentation-3ik4j3` 分支開發，經使用者指正後於 Stage 4 收尾階段補建 `trace/docs`，兩分支目前 commit 歷史完全一致）
 
 ## 最後 Trace 資訊
 
